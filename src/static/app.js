@@ -470,12 +470,64 @@ document.addEventListener("DOMContentLoaded", () => {
     Object.entries(filteredActivities).forEach(([name, details]) => {
       renderActivityCard(name, details);
     });
+
+    // Scroll to and highlight the activity from the shared link if present
+    highlightSharedActivity();
+  }
+
+  // Share an activity via Web Share API or by copying a link to the clipboard
+  const HIGHLIGHT_DURATION_MS = 3000;
+
+  function shareActivity(name) {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("activity", name);
+    const shareUrl = url.toString();
+
+    if (navigator.share) {
+      navigator.share({
+        title: `${name} - Mergington High School`,
+        text: `Check out this activity at Mergington High School: ${name}`,
+        url: shareUrl,
+      }).catch((error) => {
+        if (error.name !== "AbortError") {
+          console.error("Share failed:", error);
+        }
+      });
+    } else {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        showMessage("Link copied to clipboard!", "success");
+      }).catch(() => {
+        showMessage(
+          "Unable to copy link. Please copy the URL manually from your browser's address bar.",
+          "error"
+        );
+      });
+    }
+  }
+
+  // Highlight and scroll to an activity card whose name matches the URL ?activity= param
+  function highlightSharedActivity() {
+    const params = new URLSearchParams(window.location.search);
+    const activityParam = params.get("activity");
+    if (!activityParam) return;
+
+    const cards = activitiesList.querySelectorAll(".activity-card");
+    for (const card of cards) {
+      if (card.dataset.activityName === activityParam) {
+        card.classList.add("highlighted");
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => card.classList.remove("highlighted"), HIGHLIGHT_DURATION_MS);
+        break;
+      }
+    }
   }
 
   // Function to render a single activity card
   function renderActivityCard(name, details) {
     const activityCard = document.createElement("div");
     activityCard.className = "activity-card";
+    activityCard.dataset.activityName = name;
 
     // Calculate spots and capacity
     const totalSpots = details.max_participants;
@@ -553,6 +605,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </ul>
       </div>
       <div class="activity-card-actions">
+        <button class="share-button" title="Share this activity">🔗 Share</button>
         ${
           currentUser
             ? `
@@ -576,6 +629,10 @@ document.addEventListener("DOMContentLoaded", () => {
     deleteButtons.forEach((button) => {
       button.addEventListener("click", handleUnregister);
     });
+
+    // Add click handler for share button
+    const shareButton = activityCard.querySelector(".share-button");
+    shareButton.addEventListener("click", () => shareActivity(name));
 
     // Add click handler for register button (only when authenticated)
     if (currentUser) {
